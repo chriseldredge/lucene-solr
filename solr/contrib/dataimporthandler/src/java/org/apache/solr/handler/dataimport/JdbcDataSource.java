@@ -22,6 +22,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.naming.InitialContext;
+import javax.naming.NamingException;
+
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -131,33 +133,20 @@ public class JdbcDataSource extends
                 + url);
         long start = System.currentTimeMillis();
         Connection c = null;
-        try {
-          if(url != null){
+        
+        if(jndiName != null){
+          c = getFromJndi(initProps, jndiName, c);
+        } else if(url != null) {
+          try {
             c = DriverManager.getConnection(url, initProps);
-          } else if(jndiName != null){
-            InitialContext ctx =  new InitialContext();
-            Object jndival =  ctx.lookup(jndiName);
-            if (jndival instanceof javax.sql.DataSource) {
-              javax.sql.DataSource dataSource = (javax.sql.DataSource) jndival;
-              String user = (String) initProps.get("user");
-              String pass = (String) initProps.get("password");
-              if(user == null || user.trim().equals("")){
-                c = dataSource.getConnection();
-              } else {
-                c = dataSource.getConnection(user, pass);
-              }
-            } else {
-              throw new DataImportHandlerException(SEVERE,
-                      "the jndi name : '"+jndiName +"' is not a valid javax.sql.DataSource");
-            }
+          } catch (SQLException e) {
+            // DriverManager does not allow you to use a driver which is not loaded through
+            // the class loader of the class which is trying to make the connection.
+            // This is a workaround for cases where the user puts the driver jar in the
+            // solr.home/lib or solr.home/core/lib directories.
+            Driver d = (Driver) DocBuilder.loadClass(driver, context.getSolrCore()).newInstance();
+            c = d.connect(url, initProps);
           }
-        } catch (SQLException e) {
-          // DriverManager does not allow you to use a driver which is not loaded through
-          // the class loader of the class which is trying to make the connection.
-          // This is a workaround for cases where the user puts the driver jar in the
-          // solr.home/lib or solr.home/core/lib directories.
-          Driver d = (Driver) DocBuilder.loadClass(driver, context.getSolrCore()).newInstance();
-          c = d.connect(url, initProps);
         }
         if (c != null) {
           if (Boolean.parseBoolean(initProps.getProperty("readOnly"))) {
@@ -191,6 +180,28 @@ public class JdbcDataSource extends
         }
         LOG.info("Time taken for getConnection(): "
                 + (System.currentTimeMillis() - start));
+        return c;
+      }
+
+      private Connection getFromJndi(final Properties initProps,
+          final String jndiName, Connection c) throws NamingException,
+          SQLException {
+        
+        InitialContext ctx =  new InitialContext();
+        Object jndival =  ctx.lookup(jndiName);
+        if (jndival instanceof javax.sql.DataSource) {
+          javax.sql.DataSource dataSource = (javax.sql.DataSource) jndival;
+          String user = (String) initProps.get("user");
+          String pass = (String) initProps.get("password");
+          if(user == null || user.trim().equals("")){
+            c = dataSource.getConnection();
+          } else {
+            c = dataSource.getConnection(user, pass);
+          }
+        } else {
+          throw new DataImportHandlerException(SEVERE,
+                  "the jndi name : '"+jndiName +"' is not a valid javax.sql.DataSource");
+        }
         return c;
       }
     };
