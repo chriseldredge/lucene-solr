@@ -17,13 +17,18 @@ package org.apache.solr.handler.dataimport;
  */
 
 
-import org.apache.solr.core.SolrCore;
-import org.apache.solr.handler.dataimport.config.Script;
-
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.management.openmbean.InvalidOpenTypeException;
+
+import org.apache.commons.io.IOUtils;
+import org.apache.solr.core.SolrCore;
+import org.apache.solr.handler.dataimport.config.Script;
 
 /**
  * <p>
@@ -211,11 +216,33 @@ public class ContextImpl extends Context {
 
   @Override
   public String getScript() {
-    if (dataImporter != null) {
-      Script script = dataImporter.getConfig().getScript();
-      return script == null ? null : script.getText();
+    if (dataImporter == null) return null;
+    
+    Script script = dataImporter.getConfig().getScript();
+    
+    if (script == null) return null;
+    
+    if (script.getScriptSource() != null)
+    {
+      InputStream is = null;
+      try {
+        is = loadResource(script.getScriptSource());
+        return IOUtils.toString(is);
+      } catch (IOException ex) {
+        throw new RuntimeException(ex);
+      } finally {
+        if (is != null)
+        {
+          IOUtils.closeQuietly(is);
+        }
+      }
     }
-    return null;
+    
+    return script.getText();
+  }
+
+  InputStream loadResource(String path) throws IOException {
+    return getSolrCore().getResourceLoader().openResource(path);
   }
   
   @Override
