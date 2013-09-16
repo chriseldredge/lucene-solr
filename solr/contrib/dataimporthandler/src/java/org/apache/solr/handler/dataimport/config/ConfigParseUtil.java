@@ -50,7 +50,11 @@ public class ConfigParseUtil {
   }
   
   public static String getText(Node elem, StringBuilder buffer) {
-    if (elem.getNodeType() != Node.CDATA_SECTION_NODE) {
+    if (elem.getNodeType() == Node.CDATA_SECTION_NODE) {
+      buffer.append(elem.getNodeValue());
+    } else if (elem.getNodeType() == Node.TEXT_NODE) {
+      buffer.append(elem.getTextContent());
+    } else {
       NodeList childs = elem.getChildNodes();
       for (int i = 0; i < childs.getLength(); i++) {
         Node child = childs.item(i);
@@ -59,9 +63,7 @@ public class ConfigParseUtil {
             && childType != Node.PROCESSING_INSTRUCTION_NODE) {
           getText(child, buffer);
         }
-      }
-    } else {
-      buffer.append(elem.getNodeValue());
+      }     
     }
     
     return buffer.toString();
