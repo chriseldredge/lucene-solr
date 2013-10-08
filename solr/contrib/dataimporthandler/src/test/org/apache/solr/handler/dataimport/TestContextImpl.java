@@ -16,10 +16,16 @@
  */
 package org.apache.solr.handler.dataimport;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 
-import org.apache.solr.handler.dataimport.RequestInfo;
+import org.apache.solr.core.SolrConfig;
+import org.apache.solr.core.SolrCore;
 import org.junit.Test;
+
+import com.sun.mail.iap.ByteArray;
 
 public class TestContextImpl extends AbstractDataImportHandlerTestCase {
   
@@ -66,5 +72,49 @@ public class TestContextImpl extends AbstractDataImportHandlerTestCase {
     assertEquals(lala, got);
     
   }
-  
+  @Test
+  public void testGetScriptNoScript() throws Exception
+  {
+    ContextImpl ctx = createContextWithScript("");
+    
+    assertEquals("getScript()", null, ctx.getScript());
+  }
+  @Test
+  public void testGetScriptEmptyScript() throws Exception
+  {
+    ContextImpl ctx = createContextWithScript("<script/>");
+    
+    assertEquals("getScript()", "", ctx.getScript());
+  }
+  @Test
+  public void testGetScriptFromBodyInCDataBlock() throws Exception
+  {
+    ContextImpl ctx = createContextWithScript("<script><![CDATA[function whatever(row, context) {}]]></script>");
+    
+    assertEquals("getScript()", "function whatever(row, context) {}", ctx.getScript());
+  }
+  @Test
+  public void testGetScriptFromBodyWithoutCDataBlock() throws Exception
+  {
+    ContextImpl ctx = createContextWithScript("<script>function whatever(row, context) {}</script>");
+    
+    assertEquals("getScript()", "function whatever(row, context) {}", ctx.getScript());
+  }
+  @Test
+  public void testGetScriptFromSrcAttribute() throws Exception
+  {
+    ContextImpl ctx = createContextWithScript("<script src='shared-functions.js'/>");
+    
+    assertEquals("getScript()", "external text for path shared-functions.js", ctx.getScript());
+  }
+  private ContextImpl createContextWithScript(String scriptTag) throws Exception {
+    DataImporter dataImporter = new DataImporter();
+    dataImporter.loadAndInit("<dataConfig>" + scriptTag + "<document/></dataConfig>");
+    DocBuilder docBuilder = new DocBuilder(dataImporter, new SolrWriter(null, null), new SimplePropertiesWriter(), new RequestInfo(new HashMap<String,Object>(), null));
+    return new ContextImpl(null, new VariableResolverImpl(), null, "something", new HashMap<String,Object>(), null, docBuilder) {
+      InputStream loadResource(String path) throws IOException {
+        return new ByteArrayInputStream(("external text for path " + path).getBytes());
+      }
+    };
+  }
 }
