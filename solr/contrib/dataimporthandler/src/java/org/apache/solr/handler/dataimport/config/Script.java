@@ -21,9 +21,11 @@ import org.w3c.dom.Element;
 public class Script {
   private final String language;
   private final String text;
+  private final String source;
   
   public Script(Element e) {
     this.language = ConfigParseUtil.getStringAttribute(e, "language", "JavaScript");
+    this.source = ConfigParseUtil.getStringAttribute(e, "src", null);
     StringBuilder buffer = new StringBuilder();
     String script = ConfigParseUtil.getText(e, buffer);
     if (script != null) {
@@ -37,5 +39,8 @@ public class Script {
   }  
   public String getText() {
     return text;
+  }
+  public String getScriptSource() {
+    return source;
   }
 }
